@@ -1,7 +1,8 @@
+```markdown
 # 📘 프로젝트 실행 가이드
 
 ## 📂 프로젝트 구조
-```plaintext
+```
 ai/
  ├── preprocessing/
  │    └── build_train_dataset.py
@@ -59,3 +60,5 @@ python -m training.train_gam_model
 ```powershell
 python -m training.predict_clicks
 ```
+
+---
