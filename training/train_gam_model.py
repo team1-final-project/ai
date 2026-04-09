@@ -18,5 +18,9 @@ y_pred = gam.predict(X_test)
 print("테스트셋 R²:", r2_score(y_test, y_pred))
 print("테스트셋 MSE:", mean_squared_error(y_test, y_pred))
 
-# 모델 저장
-joblib.dump(gam, "./models/gam_model.pkl")
+# 모델과 컬럼 구조 함께 저장
+gam_package = {
+    "model": gam,
+    "columns": list(X.columns)  # 학습에 사용한 컬럼 구조 그대로 저장
+}
+joblib.dump(gam_package, "./models/gam_model.pkl")
