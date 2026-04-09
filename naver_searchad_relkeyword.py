@@ -3,7 +3,10 @@ import hmac
 import hashlib
 import base64
 import requests
+from dotenv import load_dotenv
 import os
+
+load_dotenv()
 
 API_KEY = os.getenv("API_KEY")
 API_SECRET = os.getenv("API_SECRET")
