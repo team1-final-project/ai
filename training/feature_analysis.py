@@ -2,7 +2,7 @@ import pandas as pd
 import statsmodels.api as sm
 
 # 데이터 불러오기
-df = pd.read_csv("merged_result.csv")
+df = pd.read_csv("./data/train_dataset.csv")
 
 # 필요한 컬럼만 선택
 analysis_cols = [

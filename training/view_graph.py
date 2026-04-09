@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # 데이터 불러오기
-df = pd.read_csv("merged_result.csv", encoding="utf-8-sig")
+df = pd.read_csv("./data/train_dataset.csv", encoding="utf-8-sig")
 df["collect_day"] = pd.to_datetime(df["collect_day"])
 
 # 숫자형 변환

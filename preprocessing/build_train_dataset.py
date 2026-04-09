@@ -1,10 +1,10 @@
 import time
 import pandas as pd
-from naver_shoppinginsite_search import fetch_category_keyword_data
-from naver_searchad_relkeyword import fetch_relkwdstat   # ✅ RelKwdStat 호출 모듈
+from utils.naver_shoppinginsite_search import fetch_category_keyword_data
+from utils.naver_searchad_relkeyword import fetch_relkwdstat   # ✅ RelKwdStat 호출 모듈
 
-INPUT_PATH = "data_add_keyword.csv"
-OUTPUT_PATH = "merged_result.csv"
+INPUT_PATH = "./data/processed_keyword.csv"
+OUTPUT_PATH = "./data/train_dataset.csv"
 
 # ✅ 데이터 로드 및 기본 처리
 df = pd.read_csv(INPUT_PATH)
