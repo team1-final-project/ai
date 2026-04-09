@@ -36,7 +36,6 @@ pip install pandas scikit-learn pygam joblib
 - `processed_keyword.csv` → `train_dataset.csv` 변환  
 - 실행:
 ```powershell
-cd C:\Users\human\Desktop\용현\team1_final_project\ai
 python -m preprocessing.build_train_dataset
 ```
 - 결과: `./data/train_dataset.csv` 생성
