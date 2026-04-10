@@ -43,11 +43,7 @@ python -m preprocessing.build_train_dataset
 ---
 
 ### 2️⃣ 모델 학습
-- GAM 모델 학습 및 저장  
-- 실행:
-```powershell
-python -m training.train_gam_model
-```
+- 주피터 노트북에서 코드 실행
 - 결과: `./models/gam_model.pkl` 저장
 
 ---
