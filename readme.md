@@ -16,7 +16,7 @@ ai/
  │    ├── processed_keyword.csv
  │    └── train_dataset.csv
  └── models/
-      └── gam_model.pkl
+      └── *_model.pkl
 ```
 
 ---
