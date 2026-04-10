@@ -6,8 +6,8 @@ ai/
  ├── preprocessing/
  │    └── build_train_dataset.py
  ├── training/
- │    ├── train_gam_model.py
- │    └── predict_clicks.py
+ │    ├── train_model.ipynb
+ │    └── predict_clicks.ipynb
  ├── utils/
  │    ├── __init__.py
  │    ├── naver_searchad_relkeyword.py
@@ -25,14 +25,12 @@ ai/
 - Python 3.11 (conda 환경 `py311`)
 - 필수 패키지 설치:
 ```bash
-pip install pandas scikit-learn pygam joblib
+pip install pandas scikit-learn joblib
 ```
 
 ---
 
-## 🚀 실행 방법
-
-### 1️⃣ 데이터셋 생성
+## 🚀 데이터셋 생성
 - `processed_keyword.csv` → `train_dataset.csv` 변환  
 - 실행:
 ```powershell
@@ -40,22 +38,6 @@ python -m preprocessing.build_train_dataset
 ```
 - 결과: `./data/train_dataset.csv` 생성
 
----
-
-### 2️⃣ 모델 학습
-- 주피터 노트북에서 코드 실행
-- 결과: `./models/gam_model.pkl` 저장
-
----
-
-### 3️⃣ 예측 실행
-- 학습된 모델 불러와서 클릭수/수요량/판매량 예측  
-- 실행:
-```powershell
-python -m training.predict_clicks
-```
-
----
 
 ## 🚀 FastAPI 서버 실행
 - predict_week API 엔드포인트 실행
