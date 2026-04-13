@@ -34,16 +34,14 @@ pip install pandas scikit-learn joblib torch fastapi uvicorn pygam
 ---
 
 ## 🚀 FastAPI 서버 실행
-- `predict_week` API 엔드포인트 실행
-- 실행:
-```powershell
-uvicorn training.predict_clicks:app --reload --host 127.0.0.1 --port 8000
+- predict_week API 엔드포인트 실행
+```Powershell
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-- 설명:
-  - `training.predict_clicks:app` → `predict_clicks.ipynb` 안의 `app = FastAPI()` 객체 실행
-  - `--reload` → 코드 변경 시 자동 재시작
-  - `--host 127.0.0.1` → 로컬에서만 접속 가능
-  - `--port 8000` → 접속 포트 (브라우저에서 http://127.0.0.1:8000/docs 확인 가능)
+- app.main:app → main.py 안의 app = FastAPI() 객체 실행
+- --reload → 코드 변경 시 자동 재시작
+- --host 127.0.0.1 → 로컬에서만 접속 가능
+- --port 8000 → 접속 포트 (브라우저에서 http://127.0.0.1:8000/docs 확인 가능)
 
 ---
