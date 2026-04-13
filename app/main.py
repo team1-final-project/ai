@@ -12,13 +12,15 @@ app = FastAPI()
 class PredictRequest(BaseModel):
     keyword: str
     price: float
-    pum_id: str   # 이제 pum_id를 직접 받음
+    good_id: str   # 이제 good_id를 직접 받음
 
 # ===== 모델 및 컬럼 구조 불러오기 =====
 gam_package = joblib.load("./models/gam_model.pkl")
 gam = gam_package["model"]
 X_columns = gam_package["columns"]
 goodid_encoder = gam_package["goodid_encoder"]  # 저장된 인코더 불러오기
+
+PRICE_FACTORS = [0.6, 0.8, 1.0, 1.2, 1.4]
 
 def get_recent_ratio(keyword: str) -> float:
     """최근 4주 클릭수 비율 계산"""
@@ -32,7 +34,7 @@ def get_recent_ratio(keyword: str) -> float:
         search_df = fetch_category_keyword_data(
             start_date=start_date.strftime("%Y-%m-%d"),
             end_date=end_date.strftime("%Y-%m-%d"),
-            category="",  # category_code는 더 이상 필요 없음
+            category="50000006",  # 식품 카테고리
             keyword=keyword
         )
     except Exception as e:
@@ -43,16 +45,16 @@ def get_recent_ratio(keyword: str) -> float:
     total_clicks = recent_avg * 30
     return (total_clicks / prev_sum) if prev_sum > 0 else 0
 
-def build_test_df(price: float, pum_id: str, keyword: str, target_date: datetime.date) -> pd.DataFrame:
+def build_test_df(price: float, good_id: str, recent_ratio: float, target_date: datetime.date) -> pd.DataFrame:
     """예측용 데이터프레임 생성"""
     weekday = target_date.weekday()  # 월=0, 화=1 ... 일=6
-    pum_id_enc = goodid_encoder.transform([pum_id])[0]
+    good_id_enc = goodid_encoder.transform([good_id])[0]
 
     test_data = {
-        "1개당가격": price,
-        "최근4주클릭수_비율": get_recent_ratio(keyword),
+        "discount_price": price,
+        "최근4주클릭수_비율": recent_ratio,
         "weekday": weekday,
-        "pum_id_enc": pum_id_enc
+        "good_id_enc": good_id_enc
     }
     df = pd.DataFrame([test_data])
     return df.reindex(columns=X_columns, fill_value=0)
@@ -60,13 +62,23 @@ def build_test_df(price: float, pum_id: str, keyword: str, target_date: datetime
 @app.post("/predict_week")
 def predict_week(req: PredictRequest):
     results = []
+    recent_ratio = get_recent_ratio(req.keyword)
+
     for offset in range(7):  # 오늘 포함 7일
         target_date = datetime.date.today() + datetime.timedelta(days=offset)
-        test_df = build_test_df(req.price, req.pum_id, req.keyword, target_date)
-        pred_clicks = max(0, gam.predict(test_df)[0])  # 음수값은 0으로 잘라내기
-        results.append({
+        day_result = {
             "예측일": str(target_date),
             "예측요일": target_date.strftime("%A"),
-            "예측된 클릭수": pred_clicks
-        })
-    return {"keyword": req.keyword, "pum_id": req.pum_id, "results": results}
+            "배율별예측": {}
+        }
+
+        for factor in PRICE_FACTORS:
+            price = req.price * factor
+            test_df = build_test_df(price, req.good_id, recent_ratio, target_date)
+
+            pred_clicks = max(0, gam.predict(test_df)[0])
+            day_result["배율별예측"][f"{int(factor*100)}%"] = pred_clicks
+
+        results.append(day_result)
+
+    return {"keyword": req.keyword, "good_id": req.good_id, "results": results}
