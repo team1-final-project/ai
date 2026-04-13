@@ -97,6 +97,7 @@ LOW_STOCK_MULTIPLIER = 1.2
 class PredictPriceRequest(BaseModel):
     keyword: str               # 상품 이름
     current_price: float       # 현재 가격
+    price_change_limit: float  # 최대 변경 가격
     min_price_limit: float     # 최저가 제한
     max_price_limit: float     # 최고가 제한
     current_stock: float       # 현재 재고
@@ -499,6 +500,7 @@ def select_best_sales_candidate(
 
 def decide_price(
     current_price: float,
+    price_change_limit: float,
     min_price_limit: float,
     max_price_limit: float,
     current_stock: float,
@@ -510,7 +512,7 @@ def decide_price(
     """
     최종 가격 결정 함수
     """
-    max_change = current_price * MAX_CHANGE_RATE
+    max_change = price_change_limit
     inventory_state = get_inventory_state(current_stock, safety_stock)
     cache: Dict[float, Dict[str, float]] = {}
 
@@ -665,6 +667,7 @@ def predict_price(req: PredictPriceRequest):
 
     chosen = decide_price(
         current_price=req.current_price,
+        price_change_limit=req.price_change_limit,
         min_price_limit=req.min_price_limit,
         max_price_limit=req.max_price_limit,
         current_stock=req.current_stock,
