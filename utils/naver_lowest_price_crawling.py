@@ -1,9 +1,12 @@
 import re
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import subprocess
+
 
 def _parse_lowest_price_from_text(text: str) -> float | None:
     """
@@ -12,7 +15,6 @@ def _parse_lowest_price_from_text(text: str) -> float | None:
     if not text:
         return None
 
-    # 줄바꿈/공백이 섞여도 잡히도록 처리
     normalized = re.sub(r"\s+", " ", text)
 
     patterns = [
@@ -28,81 +30,141 @@ def _parse_lowest_price_from_text(text: str) -> float | None:
     return None
 
 
-def fetch_lowest_price_by_catalog(catalog_code: str) -> float | None:
+def _parse_catalog_name_from_text(text: str) -> str | None:
     """
-    네이버 쇼핑 카탈로그 페이지에서 빨간 '최저 xx,xxx원' 가격을 가져온다.
-    실패하면 None 반환.
+    body text에서 '브랜드 카탈로그' 아래의 상품명을 추출
+    예: CJ제일제당 비비고 육개장 500g 1개
     """
-    url = f"https://search.shopping.naver.com/catalog/{catalog_code}"
+    if not text:
+        return None
 
-    # options = Options()
-    # # 서버 환경이면 아래 headless 유지
-    # options.add_argument("--headless=new")
-    # options.add_argument("--disable-gpu")
-    # options.add_argument("--no-sandbox")
-    # options.add_argument("--disable-dev-shm-usage")
-    # options.add_argument("--window-size=1400,1200")
-    # options.add_argument(
-    #     "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    #     "AppleWebKit/537.36 (KHTML, like Gecko) "
-    #     "Chrome/123.0.0.0 Safari/537.36"
-    # )
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
 
-    # driver = webdriver.Chrome(
-    #     service=Service(ChromeDriverManager().install()),
-    #     options=options
-    # )
+    for i, line in enumerate(lines):
+        if "브랜드 카탈로그" in line:
+            for j in range(i + 1, min(i + 6, len(lines))):
+                candidate = lines[j]
 
+                excluded_keywords = [
+                    "리뷰", "찜", "최저", "원", "배송", "무료",
+                    "구매가기", "공식인증", "수량", "kcal", "로딩 중"
+                ]
+                if any(keyword in candidate for keyword in excluded_keywords):
+                    continue
+
+                if len(candidate) >= 3:
+                    return candidate
+
+    normalized = re.sub(r"\s+", " ", text)
+    match = re.search(
+        r"브랜드\s*카탈로그\s*(.+?)(?:최저|배송|리뷰|찜|수량|공식인증|구매가기)",
+        normalized
+    )
+    if match:
+        return match.group(1).strip()
+
+    return None
+
+
+def _create_driver() -> webdriver.Chrome:
     subprocess.Popen(r'C:\Program Files\Google\Chrome\Application\chrome.exe --remote-debugging-port=9222 --user-data-dir="C:\chrometemp"')
 
     option = webdriver.ChromeOptions()
     option.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-    driver = webdriver.Chrome(options=option)
+
+    return webdriver.Chrome(options=option)
+
+
+def fetch_catalog_info_by_catalog(catalog_code: str) -> dict:
+    """
+    브라우저를 한 번만 열어서
+    - 최저가
+    - 카탈로그명
+    을 함께 가져온다.
+
+    반환 예시:
+    {
+        "catalog_code": "51929189219",
+        "catalog_name": "CJ제일제당 비비고 육개장 500g 1개",
+        "lowest_price": 4510.0
+    }
+    """
+    url = f"https://search.shopping.naver.com/catalog/{catalog_code}"
+    driver = _create_driver()
 
     try:
         driver.get(url)
 
         wait = WebDriverWait(driver, 10)
-
-        # body 로드 대기
         wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-        # '최저' 문구가 나타날 때까지 한 번 더 대기
-        wait.until(
-            lambda d: "최저" in d.find_element(By.TAG_NAME, "body").text
-            or "최저가" in d.find_element(By.TAG_NAME, "body").text
-        )
-
         body_text = driver.find_element(By.TAG_NAME, "body").text
-        price = _parse_lowest_price_from_text(body_text)
-        if price is not None:
-            return price
-
-        # fallback 1: page_source에서도 시도
         page_source = driver.page_source
-        price = _parse_lowest_price_from_text(page_source)
-        if price is not None:
-            return price
 
-        # fallback 2: XPath로 '최저' 주변 숫자 찾기 시도
-        xpath_candidates = [
-            "//*[contains(text(), '최저')]/following::*[contains(text(), '원')][1]",
-            "//*[contains(text(), '최저가')]/following::*[contains(text(), '원')][1]",
+        # 보안 페이지 감지
+        blocked_keywords = [
+            "보안 확인을 완료해 주세요",
+            "captcha",
+            "스팸을 방지",
+            "실제 사용자임을 확인",
         ]
+        joined_text = f"{driver.title}\n{body_text}\n{page_source[:2000]}".lower()
+        if any(keyword.lower() in joined_text for keyword in blocked_keywords):
+            print(f"⚠️ 네이버 보안 페이지 감지(catalog_code={catalog_code})")
+            return {
+                "catalog_code": catalog_code,
+                "catalog_name": None,
+                "lowest_price": None,
+            }
 
-        for xpath in xpath_candidates:
-            elements = driver.find_elements(By.XPATH, xpath)
-            for el in elements:
-                text = el.text.strip()
-                match = re.search(r"([\d,]+)\s*원", text)
-                if match:
-                    return float(match.group(1).replace(",", ""))
+        lowest_price = _parse_lowest_price_from_text(body_text)
+        if lowest_price is None:
+            lowest_price = _parse_lowest_price_from_text(page_source)
 
-        return None
+        catalog_name = _parse_catalog_name_from_text(body_text)
+        if catalog_name is None:
+            catalog_name = _parse_catalog_name_from_text(page_source)
+
+        # fallback: XPath로 최저가 탐색
+        if lowest_price is None:
+            xpath_candidates = [
+                "//*[contains(text(), '최저')]/following::*[contains(text(), '원')][1]",
+                "//*[contains(text(), '최저가')]/following::*[contains(text(), '원')][1]",
+            ]
+
+            for xpath in xpath_candidates:
+                elements = driver.find_elements(By.XPATH, xpath)
+                for el in elements:
+                    text = el.text.strip()
+                    match = re.search(r"([\d,]+)\s*원", text)
+                    if match:
+                        lowest_price = float(match.group(1).replace(",", ""))
+                        break
+                if lowest_price is not None:
+                    break
+
+        return {
+            "catalog_code": catalog_code,
+            "catalog_name": catalog_name,
+            "lowest_price": lowest_price,
+        }
 
     except Exception as e:
-        print(f"⚠️ 최저가 조회 실패(catalog_code={catalog_code}): {e}")
-        return None
+        print(f"⚠️ 카탈로그 정보 조회 실패(catalog_code={catalog_code}): {e}")
+        return {
+            "catalog_code": catalog_code,
+            "catalog_name": None,
+            "lowest_price": None,
+        }
 
     finally:
         driver.quit()
+
+
+# 필요하면 기존 함수명도 유지 가능
+def fetch_lowest_price_by_catalog(catalog_code: str) -> float | None:
+    return fetch_catalog_info_by_catalog(catalog_code)["lowest_price"]
+
+
+def fetch_catalog_name_by_catalog(catalog_code: str) -> str | None:
+    return fetch_catalog_info_by_catalog(catalog_code)["catalog_name"]

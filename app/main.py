@@ -89,6 +89,7 @@ import math
 from typing import Optional, Dict, List
 from fastapi import HTTPException
 from utils.naver_lowest_price_crawling import fetch_lowest_price_by_catalog
+from utils.naver_lowest_price_crawling import fetch_catalog_info_by_catalog
 
 PRICE_STEP = 100
 SALES_CONVERSION_RATE = 0.5
@@ -563,7 +564,9 @@ def predict_price(req: PredictPriceRequest):
 
     # 카탈로그 기반 외부 최저가
     # TODO: 나중에 fetch_lowest_price_by_catalog 내부 구현 교체
-    market_lowest_price = fetch_lowest_price_by_catalog(req.catalog_code)
+    market_info = fetch_catalog_info_by_catalog(req.catalog_code)
+    catalog_name = market_info["catalog_name"]
+    market_lowest_price = market_info["lowest_price"]
 
     chosen = decide_price(
         current_price=req.current_price,
@@ -583,6 +586,8 @@ def predict_price(req: PredictPriceRequest):
 
     return {
         "keyword": req.keyword,
+        "catalog_code": req.catalog_code,
+        "catalog_name": catalog_name,
         "expect_sale_amount": expected_sales,
         "market_lowest_price": market_lowest_price,
         "change_price": changed_price,
