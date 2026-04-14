@@ -91,7 +91,6 @@ from fastapi import HTTPException
 from utils.naver_lowest_price_crawling import fetch_lowest_price_by_catalog
 
 PRICE_STEP = 100
-MAX_CHANGE_RATE = 0.20
 SALES_CONVERSION_RATE = 0.5
 HIGH_STOCK_MULTIPLIER = 2.0
 LOW_STOCK_MULTIPLIER = 1.2
@@ -105,9 +104,8 @@ class PredictPriceRequest(BaseModel):
     max_price_limit: float     # 최고가 제한
     current_stock: float       # 현재 재고
     safety_stock: float        # 안전 재고
-    category_code: str         # 네이버 검색지표용 카테고리 코드
     catalog_code: str          # 네이버 최저가 조회용 카탈로그 코드
-    pum_name: str              # 품목명
+    good_id: str               # 데이터에서 찾아서 연결해두기
 
 
 def floor_to_step(value: float, step: int = PRICE_STEP) -> float:
@@ -155,7 +153,7 @@ def validate_price_request(req: PredictPriceRequest) -> None:
 
 def build_test_df_with_ratio(
     price: float,
-    pum_name: str,
+    good_id: str,
     recent_ratio: float,
     target_date: datetime.date
 ) -> pd.DataFrame:
@@ -165,49 +163,50 @@ def build_test_df_with_ratio(
     """
     weekday = target_date.weekday()  # 월=0, 화=1 ... 일=6
 
+    try:
+        good_id_enc = goodid_encoder.transform([good_id])[0]
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"알 수 없는 good_id 입니다: {good_id}"
+        ) from e
+
     test_data = {
-        "1개당가격": price,
+        "discount_price": price,
         "최근4주클릭수_비율": recent_ratio,
         "weekday": weekday,
-        "pum_name": pum_name
+        "good_id_enc": good_id_enc
     }
 
     df = pd.DataFrame([test_data])
-    df = pd.get_dummies(df, columns=["pum_name", "weekday"], drop_first=True)
     return df.reindex(columns=X_columns, fill_value=0)
 
 
-def predict_7days_clicks(
+def predict_today_clicks(
     price: float,
-    pum_name: str,
+    good_id: str,
     recent_ratio: float
 ) -> float:
     """
-    주어진 가격에 대해 오늘 포함 7일 클릭수를 합산 예측.
+    오늘 하루 클릭수 예측
     음수 예측이 나오면 0으로 처리.
     """
-    total_clicks = 0.0
-    today = datetime.date.today()
-
-    for offset in range(7):
-        target_date = today + datetime.timedelta(days=offset)
-        test_df = build_test_df_with_ratio(price, pum_name, recent_ratio, target_date)
-        pred_clicks = float(gam.predict(test_df)[0])
-        total_clicks += max(pred_clicks, 0.0)
-
-    return total_clicks
+    target_date = datetime.date.today()
+    test_df = build_test_df_with_ratio(price, good_id, recent_ratio, target_date)
+    pred_clicks = float(gam.predict(test_df)[0])
+    return max(pred_clicks, 0.0)
 
 
-def predict_7days_sales(
+def predict_today_sales(
     price: float,
-    pum_name: str,
+    good_id: str,
     recent_ratio: float
 ) -> float:
     """
-    판매량 = 클릭수 * 50% 가정
+    당일 판매량 = 당일 클릭수 * 50% 가정
     """
-    total_clicks = predict_7days_clicks(price, pum_name, recent_ratio)
-    return total_clicks * SALES_CONVERSION_RATE
+    today_clicks = predict_today_clicks(price, good_id, recent_ratio)
+    return today_clicks * SALES_CONVERSION_RATE
 
 
 def generate_price_candidates(
@@ -268,7 +267,7 @@ def evaluate_price(
     price: float,
     current_stock: float,
     safety_stock: float,
-    pum_name: str,
+    good_id: str,
     recent_ratio: float,
     cache: Dict[float, Dict[str, float]]
 ) -> Dict[str, float]:
@@ -278,7 +277,7 @@ def evaluate_price(
     if price in cache:
         return cache[price]
 
-    predicted_sales = predict_7days_sales(price, pum_name, recent_ratio)
+    predicted_sales = predict_today_sales(price, good_id, recent_ratio)
     remaining_stock = current_stock - predicted_sales
     expected_revenue = price * predicted_sales
 
@@ -316,7 +315,7 @@ def select_best_revenue_candidate(
     candidates: List[float],
     current_stock: float,
     safety_stock: float,
-    pum_name: str,
+    good_id: str,
     recent_ratio: float,
     cache: Dict[float, Dict[str, float]]
 ) -> Dict[str, float]:
@@ -333,7 +332,7 @@ def select_best_revenue_candidate(
             price=p,
             current_stock=current_stock,
             safety_stock=safety_stock,
-            pum_name=pum_name,
+            good_id=good_id,
             recent_ratio=recent_ratio,
             cache=cache
         )
@@ -367,7 +366,7 @@ def select_best_sales_candidate(
     candidates: List[float],
     current_stock: float,
     safety_stock: float,
-    pum_name: str,
+    good_id: str,
     recent_ratio: float,
     cache: Dict[float, Dict[str, float]]
 ) -> Dict[str, float]:
@@ -383,7 +382,7 @@ def select_best_sales_candidate(
             price=p,
             current_stock=current_stock,
             safety_stock=safety_stock,
-            pum_name=pum_name,
+            good_id=good_id,
             recent_ratio=recent_ratio,
             cache=cache
         )
@@ -407,7 +406,7 @@ def decide_price(
     current_stock: float,
     safety_stock: float,
     market_lowest_price: Optional[float],
-    pum_name: str,
+    good_id: str,
     recent_ratio: float
 ) -> Dict[str, float]:
     """
@@ -484,7 +483,7 @@ def decide_price(
                 price=final_price,
                 current_stock=current_stock,
                 safety_stock=safety_stock,
-                pum_name=pum_name,
+                good_id=good_id,
                 recent_ratio=recent_ratio,
                 cache=cache
             )
@@ -506,7 +505,7 @@ def decide_price(
             candidates=candidates,
             current_stock=current_stock,
             safety_stock=safety_stock,
-            pum_name=pum_name,
+            good_id=good_id,
             recent_ratio=recent_ratio,
             cache=cache
         )
@@ -528,7 +527,7 @@ def decide_price(
             candidates=candidates,
             current_stock=current_stock,
             safety_stock=safety_stock,
-            pum_name=pum_name,
+            good_id=good_id,
             recent_ratio=recent_ratio,
             cache=cache
         )
@@ -549,7 +548,7 @@ def decide_price(
         candidates=candidates,
         current_stock=current_stock,
         safety_stock=safety_stock,
-        pum_name=pum_name,
+        good_id=good_id,
         recent_ratio=recent_ratio,
         cache=cache
     )
@@ -560,7 +559,7 @@ def predict_price(req: PredictPriceRequest):
     validate_price_request(req)
 
     # 검색지표는 한 번만 가져와서 재사용
-    recent_ratio = get_recent_ratio(req.keyword, req.category_code)
+    recent_ratio = get_recent_ratio(req.keyword)
 
     # 카탈로그 기반 외부 최저가
     # TODO: 나중에 fetch_lowest_price_by_catalog 내부 구현 교체
@@ -574,7 +573,7 @@ def predict_price(req: PredictPriceRequest):
         current_stock=req.current_stock,
         safety_stock=req.safety_stock,
         market_lowest_price=market_lowest_price,
-        pum_name=req.pum_name,
+        good_id=req.good_id,
         recent_ratio=recent_ratio
     )
 
@@ -584,8 +583,8 @@ def predict_price(req: PredictPriceRequest):
 
     return {
         "keyword": req.keyword,
-        "change_price": changed_price,
         "expect_sale_amount": expected_sales,
-        "change_rate": change_rate,
-        "market_lowest_price": market_lowest_price
+        "market_lowest_price": market_lowest_price,
+        "change_price": changed_price,
+        "change_rate": change_rate
     }
