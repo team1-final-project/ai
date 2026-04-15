@@ -12,7 +12,7 @@ app = FastAPI()
 class PredictRequest(BaseModel):
     keyword: str
     price: float
-    good_id: str   # 이제 good_id를 직접 받음
+    good_id: str
 
 # ===== 모델 및 컬럼 구조 불러오기 =====
 gam_package = joblib.load("./models/gam_model.pkl")
