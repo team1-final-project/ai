@@ -28,7 +28,7 @@ ai/
 - Python 3.11 (conda 환경 `py311`)
 - 필수 패키지 설치:
 ```bash
-pip install pandas scikit-learn joblib torch fastapi uvicorn pygam
+pip install pandas scikit-learn joblib torch fastapi uvicorn pygam statsmodels matplotlib
 ```
 
 ---
