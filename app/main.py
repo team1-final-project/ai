@@ -15,9 +15,10 @@ class PredictRequest(BaseModel):
     good_id: str
 
 # ===== 모델 및 컬럼 구조 불러오기 =====
+
 gam_package = joblib.load("./models/gam_model.pkl")
 gam = gam_package["model"]
-X_columns = gam_package["columns"]
+X_columns = gam_package["columns"]  # GAM 모델에 사용된 컬럼 순서
 goodid_encoder = gam_package["goodid_encoder"]  # 저장된 인코더 불러오기
 
 PRICE_FACTORS = [0.6, 0.8, 1.0, 1.2, 1.4]

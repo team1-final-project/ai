@@ -17,3 +17,4 @@ dependencies:
       - pathlib
       - requests
       - python-dotenv
+      - xgboost
