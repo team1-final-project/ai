@@ -34,7 +34,7 @@ ai/
 
 3. 환경을 활성화합니다:
    ```bash
-   conda activate py311
+   conda activate stocker-ai
    ```
 
 ## 🚀 FastAPI 서버 실행
